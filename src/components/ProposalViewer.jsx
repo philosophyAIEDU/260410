@@ -1,8 +1,10 @@
 import React, { useRef, useState } from 'react';
+import { htmlToDocxBlob } from '../lib/docxExport';
 
 export default function ProposalViewer({ html, projectName, onReset }) {
   const iframeRef = useRef(null);
   const [copied, setCopied] = useState(false);
+  const [docxLoading, setDocxLoading] = useState(false);
 
   function handleDownload() {
     const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
@@ -15,6 +17,27 @@ export default function ProposalViewer({ html, projectName, onReset }) {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  }
+
+  async function handleDocxDownload() {
+    setDocxLoading(true);
+    try {
+      const blob = await htmlToDocxBlob(html, projectName || '제안서');
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const safeName = (projectName || 'proposal').replace(/[^a-zA-Z0-9가-힣_\-]/g, '_');
+      a.download = `${safeName}_제안서.docx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error('Word 변환 실패:', e);
+      alert('Word 파일 변환 중 오류가 발생했습니다.');
+    } finally {
+      setDocxLoading(false);
+    }
   }
 
   function handlePrint() {
@@ -91,6 +114,28 @@ export default function ProposalViewer({ html, projectName, onReset }) {
             인쇄 / PDF
           </button>
           <button
+            onClick={handleDocxDownload}
+            disabled={docxLoading}
+            className="btn-secondary text-sm py-2 px-4 flex items-center gap-1.5 disabled:opacity-50"
+          >
+            {docxLoading ? (
+              <>
+                <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                변환 중...
+              </>
+            ) : (
+              <>
+                <svg className="w-3.5 h-3.5 text-blue-700" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM8.5 17.5v-1h7v1h-7zm0-3v-1h7v1h-7zm0-3v-1h4v1h-4z"/>
+                </svg>
+                Word 다운로드
+              </>
+            )}
+          </button>
+          <button
             onClick={handleDownload}
             className="btn-primary text-sm py-2 px-4 flex items-center gap-1.5"
           >
@@ -108,8 +153,8 @@ export default function ProposalViewer({ html, projectName, onReset }) {
           <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
         <span>
-          HTML 파일을 다운로드하여 브라우저에서 열거나, <strong>인쇄 / PDF</strong> 버튼으로 PDF로 저장할 수 있습니다.
-          Chrome에서 인쇄 시 "PDF로 저장"을 선택하면 PDF 파일로 저장됩니다.
+          <strong>Word 다운로드</strong>로 .docx 파일을 저장하거나, <strong>HTML 다운로드</strong>로 원본을 저장할 수 있습니다.
+          PDF로 저장하려면 <strong>인쇄 / PDF</strong> 버튼을 누른 뒤 Chrome에서 "PDF로 저장"을 선택하세요.
         </span>
       </div>
 
