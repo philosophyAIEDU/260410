@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import mammoth from 'mammoth';
 import { fileToBase64, fileToText } from '../lib/gemini';
 
 const ACCEPTED_TYPES = {
@@ -8,9 +9,22 @@ const ACCEPTED_TYPES = {
   'image/webp': 'WebP',
   'text/plain': 'TXT',
   'text/markdown': 'MD',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'DOCX',
+  'application/msword': 'DOC',
 };
 
 const TEXT_TYPES = new Set(['text/plain', 'text/markdown', 'text/html']);
+const DOCX_TYPES = new Set([
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/msword',
+]);
+
+async function docxToText(file) {
+  const arrayBuffer = await file.arrayBuffer();
+  const result = await mammoth.extractRawText({ arrayBuffer });
+  if (!result.value.trim()) throw new Error('Word 파일에서 텍스트를 추출할 수 없습니다.');
+  return result.value;
+}
 
 export default function UploadStep({ onNext, onBack }) {
   const [mode, setMode] = useState('upload'); // 'upload' | 'paste'
@@ -23,8 +37,9 @@ export default function UploadStep({ onNext, onBack }) {
 
   function acceptFile(f) {
     if (!f) return;
-    if (!ACCEPTED_TYPES[f.type] && !f.name.endsWith('.md')) {
-      setError('지원하지 않는 파일 형식입니다. PDF, PNG, JPG, WebP, TXT, MD 파일을 업로드해 주세요.');
+    const isDocx = f.name.endsWith('.docx') || f.name.endsWith('.doc');
+    if (!ACCEPTED_TYPES[f.type] && !f.name.endsWith('.md') && !isDocx) {
+      setError('지원하지 않는 파일 형식입니다. PDF, Word(DOCX), PNG, JPG, WebP, TXT, MD 파일을 업로드해 주세요.');
       return;
     }
     if (f.size > 20 * 1024 * 1024) {
@@ -56,7 +71,10 @@ export default function UploadStep({ onNext, onBack }) {
         onNext({ type: 'text', text });
       } else {
         if (!file) throw new Error('파일을 선택해 주세요.');
-        if (TEXT_TYPES.has(file.type) || file.name.endsWith('.md')) {
+        if (DOCX_TYPES.has(file.type) || file.name.endsWith('.docx') || file.name.endsWith('.doc')) {
+          const text = await docxToText(file);
+          onNext({ type: 'text', text, filename: file.name });
+        } else if (TEXT_TYPES.has(file.type) || file.name.endsWith('.md')) {
           const text = await fileToText(file);
           onNext({ type: 'text', text, filename: file.name });
         } else {
@@ -126,7 +144,7 @@ export default function UploadStep({ onNext, onBack }) {
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,.md"
+                accept=".pdf,.docx,.doc,.png,.jpg,.jpeg,.webp,.txt,.md"
                 onChange={handleFileChange}
                 className="hidden"
               />
@@ -149,7 +167,7 @@ export default function UploadStep({ onNext, onBack }) {
                   </div>
                   <div>
                     <p className="text-sm font-medium text-slate-700">파일을 드래그하거나 클릭하여 업로드</p>
-                    <p className="text-xs text-slate-400 mt-1">PDF, PNG, JPG, WebP, TXT, MD · 최대 20MB</p>
+                    <p className="text-xs text-slate-400 mt-1">PDF, Word(DOCX), PNG, JPG, WebP, TXT, MD · 최대 20MB</p>
                   </div>
                 </div>
               )}
